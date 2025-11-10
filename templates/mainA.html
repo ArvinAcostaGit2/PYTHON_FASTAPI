@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Main App - Records Viewer</title>
+    <!-- Load Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load custom styles -->
+    <link href="/static/style.css" rel="stylesheet">
+    <style>
+        /* Configure the default font */
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+    <div id="alert-container" class="fixed top-5 right-5 z-50 space-y-2">
+        <!-- Alerts will be injected here -->
+    </div>
+
+    <div class="container mx-auto p-6 lg:p-10">
+        <!-- Header -->
+        <header class="mb-8 p-6 bg-white rounded-xl shadow-lg">
+            <h1 class="text-4xl font-extrabold text-gray-900 mb-2">FASTAPI(MainA) - Records Viewer</h1>
+            <p class="text-lg text-indigo-600">Search and view all records efficiently.(Table Generated inside HTML)</p>
+            <p class="text-lg text-indigo-600">Generate CSV & JSON at Backend via Parameters</p>
+            
+        </header>
+
+        <!-- Search Box & View All Button -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-10">
+            <!-- Search Box & Button -->
+            <div class="bg-white p-6 rounded-xl shadow-md flex items-center space-x-3">
+                <input type="text" id="search-input" placeholder="Search by Name or Remarks..." class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
+                <button id="search-btn" class="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition duration-150 focus:outline-none">
+                    Search
+                </button>
+            </div>
+            
+            <!-- View All Records Button -->
+            <button id="view-all-btn" class="bg-indigo-600 text-white font-bold text-lg py-4 px-6 rounded-xl shadow-lg hover:bg-indigo-700 transition duration-150 transform hover:scale-[1.02] focus:outline-none">
+                View All Records
+            </button>
+        </div>
+
+        <!-- Table Display Area Build-In HTML Code-->
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800" id="table-title">All Records</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full border-collapse border border-gray-300">
+                    <thead class="bg-gray-200">
+                        <tr>
+                            <th class="border border-gray-300 px-4 py-2 text-left">ID</th>
+                            <th class="border border-gray-300 px-4 py-2 text-left">Name</th>
+                            <th class="border border-gray-300 px-4 py-2 text-left">Rights</th>
+                            <th class="border border-gray-300 px-4 py-2 text-left">Status</th>
+                            <th class="border border-gray-300 px-4 py-2 text-left">Remarks</th>
+                            <th class="border border-gray-300 px-4 py-2 text-left">Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody id="records-tbody">
+                        <!-- Data rows will be populated here by JavaScript -->
+                        <tr>
+                            <td colspan="6" class="border border-gray-300 px-4 py-6 text-center text-gray-500">
+                                Click "View All Records" to load data.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Elements ---
+            const searchBtn = document.getElementById('search-btn');
+            const viewAllBtn = document.getElementById('view-all-btn');
+            const searchInput = document.getElementById('search-input');
+            const tbody = document.getElementById('records-tbody');
+            const tableTitle = document.getElementById('table-title');
+
+            // --- Utility Functions ---
+
+            /** Displays a transient, colored alert message. */
+            const showAlert = (message, type = 'success') => {
+                const container = document.getElementById('alert-container');
+                if (!container) return;
+                
+                const alertDiv = document.createElement('div');
+                
+                let baseClasses = 'alert show transition duration-300 px-6 py-3 rounded-lg shadow-lg font-semibold';
+                if (type === 'success') {
+                    baseClasses += ' bg-green-500 text-white';
+                } else if (type === 'error') {
+                    baseClasses += ' bg-red-500 text-white';
+                } else if (type === 'info') {
+                    baseClasses += ' bg-blue-500 text-white';
+                }
+
+                alertDiv.className = baseClasses;
+                alertDiv.textContent = message;
+                container.appendChild(alertDiv);
+
+                setTimeout(() => {
+                    alertDiv.classList.remove('show');
+                    setTimeout(() => {
+                        container.removeChild(alertDiv);
+                    }, 300);
+                }, 5000);
+            };
+
+            /** Populates the table body with records data. */
+            const populateTableRows = (records) => {
+                if (!tbody) return;
+
+                // Clear existing rows
+                tbody.innerHTML = '';
+
+                if (records.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="6" class="border border-gray-300 px-4 py-6 text-center text-gray-500">
+                                No records found.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+
+                records.forEach((record, index) => {
+                    // Alternate row colors
+                    const rowClass = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                    
+                    // Determine status badge class
+                    let statusClass = 'px-2 py-1 rounded-full text-xs font-semibold';
+                    if (record.status === 'Active') statusClass += ' bg-green-100 text-green-800';
+                    else if (record.status === 'Inactive') statusClass += ' bg-red-100 text-red-800';
+                    else if (record.status === 'On Hold') statusClass += ' bg-yellow-100 text-yellow-800';
+
+                    // Format timestamp for display
+                    const formattedTimestamp = new Date(record.timestamp).toLocaleString();
+
+                    // Create table row
+                    const tr = document.createElement('tr');
+                    tr.className = rowClass;
+                    tr.innerHTML = `
+                        <td class="border border-gray-300 px-4 py-2">${record.id}</td>
+                        <td class="border border-gray-300 px-4 py-2 font-medium text-gray-900">${record.name}</td>
+                        <td class="border border-gray-300 px-4 py-2">${record.rights}</td>
+                        <td class="border border-gray-300 px-4 py-2"><span class="${statusClass}">${record.status}</span></td>
+                        <td class="border border-gray-300 px-4 py-2">${record.remarks || '-'}</td>
+                        <td class="border border-gray-300 px-4 py-2"><span class="text-sm text-gray-500">${formattedTimestamp}</span></td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            };
+            
+            // --- API Interactions ---
+
+            /** Fetch records from a given API endpoint. */
+            const fetchRecords = async (endpoint, options = {}) => {
+                try {
+                    const response = await fetch(endpoint, options);
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || `HTTP Error: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    showAlert(`Operation failed: ${error.message}`, 'error');
+                    console.error('API Fetch Error:', error);
+                    return null;
+                }
+            };
+            
+            /** Fetches and displays all records. */
+            const fetchAndDisplayAllRecords = async () => {
+                if (!tbody) return;
+                tbody.innerHTML = `
+                    <tr>
+                        <td colspan="6" class="border border-gray-300 px-4 py-6 text-center text-indigo-500">
+                            Loading records...
+                        </td>
+                    </tr>
+                `;
+                tableTitle.textContent = 'All Records';
+                
+                const records = await fetchRecords('/api/records/all');
+                if (records) {
+                    populateTableRows(records);
+                } else {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="6" class="border border-gray-300 px-4 py-6 text-center text-gray-500">
+                                Could not load records.
+                            </td>
+                        </tr>
+                    `;
+                }
+            };
+
+            // --- Event Handlers ---
+            
+            // 1. Search Functionality
+            if (searchBtn && searchInput) {
+                searchBtn.addEventListener('click', async () => {
+                    const query = searchInput.value.trim();
+                    if (!query) {
+                        showAlert('Please enter a search term.', 'info');
+                        return;
+                    }
+
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="6" class="border border-gray-300 px-4 py-6 text-center text-indigo-500">
+                                Searching...
+                            </td>
+                        </tr>
+                    `;
+                    tableTitle.textContent = `Search Results for "${query}"`;
+
+                    const records = await fetchRecords('/api/search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query: query })
+                    });
+
+                    if (records) {
+                        populateTableRows(records);
+                    }
+                });
+
+                // Allow Enter key to trigger search
+                searchInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        searchBtn.click();
+                    }
+                });
+            }
+
+            // 2. View All Records Functionality
+            if (viewAllBtn) {
+                viewAllBtn.addEventListener('click', () => {
+                    fetchAndDisplayAllRecords();
+                });
+            }
+        });
+    </script>
+</body>
+</html>

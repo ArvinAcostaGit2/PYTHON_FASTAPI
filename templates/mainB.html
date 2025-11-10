@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Main App - Records Viewer</title>
+    <!-- Load Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Load custom styles -->
+    <link href="/static/style.css" rel="stylesheet">
+    <style>
+        /* Configure the default font */
+        body { font-family: 'Inter', sans-serif; }
+        .alert { opacity: 0; transform: translateX(100%); }
+        .alert.show { opacity: 1; transform: translateX(0); }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen">
+
+    <div id="alert-container" class="fixed top-5 right-5 z-50 space-y-2">
+        <!-- Alerts will be injected here -->
+    </div>
+
+    <div class="container mx-auto p-6 lg:p-10">
+        <!-- Header -->
+        <header class="mb-8 p-6 bg-white rounded-xl shadow-lg">
+            <h1 class="text-4xl font-extrabold text-gray-900 mb-2">FASTAPI(MainB) - Records Viewer</h1>
+            <p class="text-lg text-indigo-600">Search and view all records efficiently.(Table Generated inside HTML)</p>
+            <p class="text-lg text-indigo-600">Client Generate Export CSV Via Frontend</p>
+        </header>
+
+        <!-- Search Box & Action Buttons -->
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+            <!-- Search Box & Button -->
+            <div class="bg-white p-6 rounded-xl shadow-md flex items-center space-x-3">
+                <input type="text" id="search-input" placeholder="Search by Name or Remarks..." class="flex-grow p-2 border border-gray-300 rounded-lg focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
+                <button id="search-btn" class="px-4 py-2 bg-blue-500 text-white font-semibold rounded-lg shadow-md hover:bg-blue-600 transition duration-150 focus:outline-none">
+                    Search
+                </button>
+            </div>
+            
+            <!-- View All Records Button -->
+            <button id="view-all-btn" class="bg-indigo-600 text-white font-bold text-lg py-4 px-6 rounded-xl shadow-lg hover:bg-indigo-700 transition duration-150 transform hover:scale-[1.02] focus:outline-none">
+                View All Records
+            </button>
+
+            <!-- Export to CSV Button -->
+            <button id="export-csv-btn" class="bg-green-600 text-white font-bold text-lg py-4 px-6 rounded-xl shadow-lg hover:bg-green-700 transition duration-150 transform hover:scale-[1.02] focus:outline-none">
+                Export to CSV (Client Side)
+            </button>
+        </div>
+
+        <!-- Table Display Area -->
+        <div class="bg-white p-6 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-bold mb-4 text-gray-800" id="table-title">All Records</h2>
+            <div class="overflow-x-auto">
+                <table class="min-w-full border-collapse border border-gray-300">
+                    <thead class="bg-gray-200">
+                        <tr>
+                            <th class="border border-gray-300 px-4 py-2 text-left">ID</th>
+                            <th class="border border-gray-300 px-4 py-2 text-left">Name</th>
+                            <th class="border border-gray-300 px-4 py-2 text-left">Rights</th>
+                            <th class="border border-gray-300 px-4 py-2 text-left">Status</th>
+                            <th class="border border-gray-300 px-4 py-2 text-left">Remarks</th>
+                            <th class="border border-gray-300 px-4 py-2 text-left">Timestamp</th>
+                        </tr>
+                    </thead>
+                    <tbody id="records-tbody">
+                        <tr>
+                            <td colspan="6" class="border border-gray-300 px-4 py-6 text-center text-gray-500">
+                                Click "View All Records" to load data.
+                            </td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Elements ---
+            const searchBtn = document.getElementById('search-btn');
+            const viewAllBtn = document.getElementById('view-all-btn');
+            const exportCsvBtn = document.getElementById('export-csv-btn');
+            const searchInput = document.getElementById('search-input');
+            const tbody = document.getElementById('records-tbody');
+            const tableTitle = document.getElementById('table-title');
+
+            // --- Utility Functions ---
+
+            /** Displays a transient, colored alert message. */
+            const showAlert = (message, type = 'success') => {
+                const container = document.getElementById('alert-container');
+                if (!container) return;
+                
+                const alertDiv = document.createElement('div');
+                
+                let baseClasses = 'alert show transition duration-300 px-6 py-3 rounded-lg shadow-lg font-semibold';
+                if (type === 'success') {
+                    baseClasses += ' bg-green-500 text-white';
+                } else if (type === 'error') {
+                    baseClasses += ' bg-red-500 text-white';
+                } else if (type === 'info') {
+                    baseClasses += ' bg-blue-500 text-white';
+                }
+
+                alertDiv.className = baseClasses;
+                alertDiv.textContent = message;
+                container.appendChild(alertDiv);
+
+                setTimeout(() => {
+                    alertDiv.classList.remove('show');
+                    setTimeout(() => {
+                        container.removeChild(alertDiv);
+                    }, 300);
+                }, 5000);
+            };
+
+            /** Populates the table body with records data */
+            const populateTableRows = (records) => {
+                if (!tbody) return;
+
+                tbody.innerHTML = '';
+
+                if (records.length === 0) {
+                    const tr = document.createElement('tr');
+                    const td = document.createElement('td');
+                    td.setAttribute('colspan', '6');
+                    td.className = 'border border-gray-300 px-4 py-6 text-center text-gray-500';
+                    td.textContent = 'No records found.';
+                    tr.appendChild(td);
+                    tbody.appendChild(tr);
+                    return;
+                }
+
+                records.forEach((record, index) => {
+                    const tr = document.createElement('tr');
+                    const rowClass = index % 2 === 0 ? 'bg-white' : 'bg-gray-50';
+                    tr.className = rowClass;
+                    
+                    // ID
+                    const tdId = document.createElement('td');
+                    tdId.className = 'border border-gray-300 px-4 py-2';
+                    tdId.textContent = record.id;
+                    tr.appendChild(tdId);
+                    
+                    // Name
+                    const tdName = document.createElement('td');
+                    tdName.className = 'border border-gray-300 px-4 py-2 font-medium text-gray-900';
+                    tdName.textContent = record.name;
+                    tr.appendChild(tdName);
+                    
+                    // Rights
+                    const tdRights = document.createElement('td');
+                    tdRights.className = 'border border-gray-300 px-4 py-2';
+                    tdRights.textContent = record.rights;
+                    tr.appendChild(tdRights);
+                    
+                    // Status with badge
+                    const tdStatus = document.createElement('td');
+                    tdStatus.className = 'border border-gray-300 px-4 py-2';
+                    const statusSpan = document.createElement('span');
+                    statusSpan.className = 'px-2 py-1 rounded-full text-xs font-semibold';
+                    if (record.status === 'Active') {
+                        statusSpan.className += ' bg-green-100 text-green-800';
+                    } else if (record.status === 'Inactive') {
+                        statusSpan.className += ' bg-red-100 text-red-800';
+                    } else if (record.status === 'On Hold') {
+                        statusSpan.className += ' bg-yellow-100 text-yellow-800';
+                    } else {
+                        statusSpan.className += ' bg-gray-100 text-gray-800';
+                    }
+                    statusSpan.textContent = record.status;
+                    tdStatus.appendChild(statusSpan);
+                    tr.appendChild(tdStatus);
+                    
+                    // Remarks
+                    const tdRemarks = document.createElement('td');
+                    tdRemarks.className = 'border border-gray-300 px-4 py-2';
+                    tdRemarks.textContent = record.remarks || '-';
+                    tr.appendChild(tdRemarks);
+                    
+                    // Timestamp
+                    const tdTimestamp = document.createElement('td');
+                    tdTimestamp.className = 'border border-gray-300 px-4 py-2';
+                    const timestampSpan = document.createElement('span');
+                    timestampSpan.className = 'text-sm text-gray-500';
+                    timestampSpan.textContent = new Date(record.timestamp).toLocaleString();
+                    tdTimestamp.appendChild(timestampSpan);
+                    tr.appendChild(tdTimestamp);
+                    
+                    tbody.appendChild(tr);
+                });
+            };
+            
+            // --- API Interactions ---
+
+            const fetchRecords = async (endpoint, options = {}) => {
+                try {
+                    const response = await fetch(endpoint, options);
+                    if (!response.ok) {
+                        const errorData = await response.json();
+                        throw new Error(errorData.detail || `HTTP Error: ${response.status}`);
+                    }
+                    return await response.json();
+                } catch (error) {
+                    showAlert(`Operation failed: ${error.message}`, 'error');
+                    console.error('API Fetch Error:', error);
+                    return null;
+                }
+            };
+            
+            const showLoadingMessage = (message) => {
+                tbody.innerHTML = '';
+                const tr = document.createElement('tr');
+                const td = document.createElement('td');
+                td.setAttribute('colspan', '6');
+                td.className = 'border border-gray-300 px-4 py-6 text-center text-indigo-500';
+                td.textContent = message;
+                tr.appendChild(td);
+                tbody.appendChild(tr);
+            };
+            
+            const fetchAndDisplayAllRecords = async () => {
+                showLoadingMessage('Loading records...');
+                tableTitle.textContent = 'All Records';
+                
+                const records = await fetchRecords('/api/records/all');
+                if (records) {
+                    populateTableRows(records);
+                } else {
+                    showLoadingMessage('Could not load records.');
+                }
+            };
+
+            // --- Event Handlers ---
+            
+            // 1. Search
+            if (searchBtn && searchInput) {
+                searchBtn.addEventListener('click', async () => {
+                    const query = searchInput.value.trim();
+                    if (!query) {
+                        showAlert('Please enter a search term.', 'info');
+                        return;
+                    }
+
+                    showLoadingMessage('Searching...');
+                    tableTitle.textContent = `Search Results for "${query}"`;
+
+                    const records = await fetchRecords('/api/search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ query: query })
+                    });
+
+                    if (records) {
+                        populateTableRows(records);
+                    }
+                });
+
+                searchInput.addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        searchBtn.click();
+                    }
+                });
+            }
+
+            // 2. View All
+            if (viewAllBtn) {
+                viewAllBtn.addEventListener('click', () => {
+                    fetchAndDisplayAllRecords();
+                });
+            }
+
+            // 3. Export to CSV
+            if (exportCsvBtn) {
+                exportCsvBtn.addEventListener('click', async () => {
+                    try {
+                        showAlert('Preparing CSV download...', 'info');
+
+                        const response = await fetch('/api/export/csv', {
+                            method: 'GET',
+                            headers: { 'Accept': 'text/csv' }
+                        });
+
+                        if (!response.ok) {
+                            const err = await response.json();
+                            throw new Error(err.detail || `HTTP ${response.status}`);
+                        }
+
+                        const disposition = response.headers.get('Content-Disposition');
+                        const filename = disposition
+                            ? disposition.split('filename=')[1].replace(/"/g, '')
+                            : `records_export_${new Date().toISOString().slice(0,19).replace(/:/g, '')}.csv`;
+
+                        const blob = await response.blob();
+                        const url = window.URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = filename;
+                        document.body.appendChild(a);
+                        a.click();
+                        window.URL.revokeObjectURL(url);
+                        document.body.removeChild(a);
+
+                        showAlert('CSV downloaded successfully!', 'success');
+                    } catch (err) {
+                        console.error('Export error:', err);
+                        showAlert(`Export failed: ${err.message}`, 'error');
+                    }
+                });
+            }
+        });
+    </script>
+</body>
+</html>

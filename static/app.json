@@ -1,0 +1,342 @@
+document.addEventListener('DOMContentLoaded', () => {
+    // --- Modal Elements ---
+    const searchModal = document.getElementById('search-results-modal');
+    const addModal = document.getElementById('add-record-modal');
+    const viewAllModal = document.getElementById('view-all-modal');
+    const editModal = document.getElementById('edit-record-modal');
+    const deleteConfirmModal = document.getElementById('delete-confirm-modal');
+    
+    // --- Button/Input Elements ---
+    const searchBtn = document.getElementById('search-btn');
+    const viewAllBtn = document.getElementById('view-all-btn');
+    const addBtn = document.getElementById('add-btn');
+    const searchInput = document.getElementById('search-input');
+    const deleteIdInput = document.getElementById('delete-id-input');
+    const confirmDeleteBtn = document.getElementById('confirm-delete-btn');
+
+    // --- Form Elements ---
+    const addForm = document.getElementById('add-record-form');
+    const editForm = document.getElementById('edit-record-form');
+    
+    // --- Table Containers ---
+    const searchResultsContainer = document.getElementById('search-results-table-container');
+    const allRecordsContainer = document.getElementById('all-records-table-container');
+
+    // --- Utility Functions ---
+
+    /** Displays a transient, colored alert message. */
+    const showAlert = (message, type = 'success') => {
+        const container = document.getElementById('alert-container');
+        if (!container) return; // Guard against container not existing
+        
+        const alertDiv = document.createElement('div');
+        
+        // Define Tailwind classes based on alert type
+        let baseClasses = 'alert show transition duration-300';
+        if (type === 'success') {
+            baseClasses += ' bg-green-500 text-white';
+        } else if (type === 'error') {
+            baseClasses += ' bg-red-500 text-white';
+        } else if (type === 'info') {
+            baseClasses += ' bg-blue-500 text-white';
+        }
+
+        alertDiv.className = baseClasses;
+        alertDiv.textContent = message;
+        container.appendChild(alertDiv);
+
+        setTimeout(() => {
+            alertDiv.classList.remove('show');
+            setTimeout(() => {
+                container.removeChild(alertDiv);
+            }, 300);
+        }, 5000);
+    };
+
+    /** Opens a specified modal. */
+    const openModal = (modalElement) => {
+        if (modalElement) {
+            modalElement.classList.remove('hidden');
+        }
+    };
+
+    /** Closes a specified modal. */
+    const closeModal = (modalElement) => {
+        if (modalElement) {
+            modalElement.classList.add('hidden');
+        }
+    };
+
+    /** Closes all modals. */
+    const closeAllModals = () => {
+        closeModal(searchModal);
+        closeModal(addModal);
+        closeModal(viewAllModal);
+        closeModal(editModal);
+        closeModal(deleteConfirmModal);
+    };
+
+    // Global event listener to close modals when the 'close-modal' class is clicked
+    document.querySelectorAll('.close-modal').forEach(button => {
+        button.addEventListener('click', (e) => {
+            // Find the closest parent with the 'modal' class and close it
+            const modal = e.target.closest('.modal');
+            if (modal) {
+                closeModal(modal);
+            }
+        });
+    });
+
+    /** Generates the HTML table structure from an array of records. */
+    const generateTableHTML = (records, targetContainer, isCrudTable = false) => {
+        if (!targetContainer) return; // Safety check
+
+        if (records.length === 0) {
+            targetContainer.innerHTML = '<p class="text-center py-6 text-lg text-gray-500">No records found matching your query.</p>';
+            return;
+        }
+
+        let tableHtml = `
+            <table class="crud-table min-w-full">
+                <thead>
+                    <tr>
+                        <th>ID</th>
+                        <th>Name</th>
+                        <th>Rights</th>
+                        <th>Status</th>
+                        <th>Remarks</th>
+                        <th>Timestamp</th>
+                        ${isCrudTable ? '<th>Actions</th>' : ''}
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        records.forEach(record => {
+            // Determine status badge class
+            let statusClass = '';
+            if (record.status === 'Active') statusClass = 'status-active';
+            else if (record.status === 'Inactive') statusClass = 'status-inactive';
+            else if (record.status === 'On Hold') statusClass = 'status-on-hold';
+
+            // Format timestamp for display
+            const formattedTimestamp = new Date(record.timestamp).toLocaleString();
+
+            tableHtml += `
+                <tr data-record-id="${record.id}">
+                    <td>${record.id}</td>
+                    <td class="font-medium text-gray-900">${record.name}</td>
+                    <td>${record.rights}</td>
+                    <td><span class="${statusClass}">${record.status}</span></td>
+                    <td>${record.remarks || '-'}</td>
+                    <td><span class="text-sm text-gray-500">${formattedTimestamp}</span></td>
+                    ${isCrudTable ? `
+                        <td class="space-x-2 whitespace-nowrap">
+                            <button data-id="${record.id}" class="modify-btn bg-yellow-500 hover:bg-yellow-600 text-white text-xs font-semibold py-1 px-3 rounded-full transition duration-150">Modify</button>
+                            <button data-id="${record.id}" class="delete-btn bg-red-500 hover:bg-red-600 text-white text-xs font-semibold py-1 px-3 rounded-full transition duration-150">Delete</button>
+                        </td>
+                    ` : ''}
+                </tr>
+            `;
+        });
+
+        tableHtml += '</tbody></table>';
+        targetContainer.innerHTML = tableHtml;
+
+        // If it's the CRUD table, attach event listeners for Modify/Delete
+        if (isCrudTable) {
+            targetContainer.querySelectorAll('.modify-btn').forEach(btn => {
+                btn.addEventListener('click', () => populateEditModal(btn.dataset.id, records));
+            });
+            targetContainer.querySelectorAll('.delete-btn').forEach(btn => {
+                btn.addEventListener('click', () => openDeleteConfirmation(btn.dataset.id));
+            });
+        }
+    };
+    
+    // --- API Interactions ---
+
+    /** Fetch records from a given API endpoint. */
+    const fetchRecords = async (endpoint, options = {}) => {
+        try {
+            const response = await fetch(endpoint, options);
+            if (!response.ok) {
+                const errorData = await response.json();
+                throw new Error(errorData.detail || `HTTP Error: ${response.status}`);
+            }
+            // Check for 204 No Content response
+            if (response.status === 204) {
+                return null; 
+            }
+            return await response.json();
+        } catch (error) {
+            showAlert(`Operation failed: ${error.message}`, 'error');
+            console.error('API Fetch Error:', error);
+            return null;
+        }
+    };
+    
+    /** Fetches and displays all records, primarily for the 'View All' modal. */
+    const fetchAndDisplayAllRecords = async () => {
+        if (!allRecordsContainer) return; // Safety check
+        allRecordsContainer.innerHTML = '<p class="text-center py-4 text-gray-500">Loading records...</p>';
+        const records = await fetchRecords('/api/records/all');
+        if (records) {
+            // Set isCrudTable to true to include the action buttons
+            generateTableHTML(records, allRecordsContainer, true);
+        } else {
+            allRecordsContainer.innerHTML = '<p class="text-center py-4 text-gray-500">Could not load records.</p>';
+        }
+    };
+
+
+    // --- Event Handlers ---
+    
+    // 1. Search Functionality
+    if (searchBtn && searchInput && searchModal) {
+        searchBtn.addEventListener('click', async () => {
+            const query = searchInput.value.trim();
+            if (!query) {
+                showAlert('Please enter a search term.', 'info');
+                return;
+            }
+
+            openModal(searchModal);
+            searchResultsContainer.innerHTML = '<p class="text-center py-6 text-lg text-indigo-500">Searching...</p>';
+
+            const records = await fetchRecords('/api/search', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ query: query })
+            });
+
+            if (records) {
+                // Set isCrudTable to false for search results
+                generateTableHTML(records, searchResultsContainer, false);
+            }
+        });
+    }
+
+    // 2. Add Record Functionality
+    if (addBtn && addModal && addForm) {
+        addBtn.addEventListener('click', () => {
+            addForm.reset(); // Clear previous data
+            openModal(addModal);
+        });
+
+        addForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const data = {
+                name: document.getElementById('add-name').value,
+                rights: document.getElementById('add-rights').value,
+                status: document.getElementById('add-status').value,
+                remarks: document.getElementById('add-remarks').value
+            };
+
+            const newRecord = await fetchRecords('/api/records', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (newRecord) {
+                closeModal(addModal);
+                showAlert(`Record "${newRecord.name}" created successfully!`, 'success');
+                // Refresh the view if it was open
+                if (viewAllModal && !viewAllModal.classList.contains('hidden')) {
+                    fetchAndDisplayAllRecords();
+                }
+            }
+        });
+    }
+
+    // 3. View All Records Functionality
+    if (viewAllBtn && viewAllModal) {
+        viewAllBtn.addEventListener('click', () => {
+            openModal(viewAllModal);
+            fetchAndDisplayAllRecords();
+        });
+    }
+
+    // 4. Edit Record Functionality (Populate Modal)
+    const populateEditModal = (id, records) => {
+        const record = records.find(r => r.id == id);
+        if (!record) {
+            showAlert('Error: Record data missing for edit.', 'error');
+            return;
+        }
+
+        // Populate fields (assuming all elements exist in the edit modal)
+        document.getElementById('edit-id-display').textContent = record.id;
+        document.getElementById('edit-id').value = record.id;
+        document.getElementById('edit-name').value = record.name;
+        document.getElementById('edit-rights').value = record.rights;
+        document.getElementById('edit-status').value = record.status;
+        document.getElementById('edit-remarks').value = record.remarks || '';
+        document.getElementById('edit-timestamp-display').textContent = new Date(record.timestamp).toLocaleString();
+
+        closeModal(viewAllModal); // Close the view all modal
+        openModal(editModal);      // Open the edit modal
+    };
+    
+    // 4. Edit Record Functionality (Submit Update)
+    if (editForm && editModal && viewAllModal) {
+        editForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const id = document.getElementById('edit-id').value;
+            const data = {
+                name: document.getElementById('edit-name').value,
+                rights: document.getElementById('edit-rights').value,
+                status: document.getElementById('edit-status').value,
+                remarks: document.getElementById('edit-remarks').value
+            };
+
+            const updatedRecord = await fetchRecords(`/api/records/${id}`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            });
+
+            if (updatedRecord) {
+                closeModal(editModal);
+                showAlert(`Record ID ${id} updated successfully!`, 'success');
+                // Reopen and refresh the view all modal
+                openModal(viewAllModal);
+                fetchAndDisplayAllRecords();
+            }
+        });
+    }
+    
+    // 5. Delete Record Functionality (Open Confirmation)
+    const openDeleteConfirmation = (id) => {
+        if (!deleteIdInput || !document.getElementById('delete-id-display') || !deleteConfirmModal || !viewAllModal) return; // Safety check
+
+        deleteIdInput.value = id;
+        document.getElementById('delete-id-display').textContent = id;
+        closeModal(viewAllModal); // Close the view all modal
+        openModal(deleteConfirmModal);
+    };
+
+    // 5. Delete Record Functionality (Execute Delete)
+    if (confirmDeleteBtn && deleteIdInput && deleteConfirmModal && viewAllModal) {
+        confirmDeleteBtn.addEventListener('click', async () => {
+            const id = deleteIdInput.value;
+            
+            const result = await fetchRecords(`/api/records/${id}`, {
+                method: 'DELETE'
+            });
+
+            // The API returns 204 (No Content) on successful delete
+            if (result === null) {
+                closeModal(deleteConfirmModal);
+                showAlert(`Record ID ${id} deleted successfully!`, 'success');
+                // Reopen and refresh the view all modal
+                openModal(viewAllModal);
+                fetchAndDisplayAllRecords();
+            }
+        });
+    }
+
+});

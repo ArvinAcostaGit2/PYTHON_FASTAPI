@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Welcome - FastAPI CRUD App</title>
+    <!-- Load Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/static/style.css" rel="stylesheet">
+    <style>
+        /* Configure the default font */
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-gray-50 flex items-center justify-center min-h-screen">
+    <div class="max-w-md w-full bg-white p-8 rounded-xl shadow-2xl transition duration-500 hover:shadow-xl transform hover:scale-[1.01]">
+        <div class="text-center">
+            <svg class="mx-auto h-12 w-12 text-indigo-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            <h1 class="mt-4 text-3xl font-extrabold text-gray-900">
+                Welcome to the Data Manager
+            </h1>
+            <p class="mt-2 text-sm text-gray-500">
+                A simple, yet powerful CRUD application built with FastAPI and SQLite.
+            </p>
+        </div>
+        <div class="mt-6">
+            <a href="/main" id="acknowledge-btn" class="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition duration-150 ease-in-out transform hover:scale-[1.02]">
+                Acknowledge & Proceed to Main App
+            </a>
+        </div>
+        <div class="mt-8 text-center">
+            <p class="text-xs text-gray-400">Powered by Python & Modern Web Standards</p>
+        </div>
+    </div>
+</body>
+</html>
