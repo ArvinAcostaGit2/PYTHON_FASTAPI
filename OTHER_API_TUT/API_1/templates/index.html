@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FastAPI CRUD with Form Data</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        h1, h2 { color: #333; }
+        form { margin-bottom: 20px; padding: 15px; border: 1px solid #ccc; border-radius: 5px; background-color: #f9f9f9; }
+        form label { display: block; margin-top: 10px; font-weight: bold; }
+        form input[type="text"] { width: 100%; padding: 8px; margin-top: 5px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 3px; }
+        form button { background-color: #007bff; color: white; padding: 10px 15px; border: none; border-radius: 4px; cursor: pointer; margin-top: 15px; }
+        form button:hover { background-color: #0056b3; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #f2f2f2; }
+        .edit-btn, .delete-btn { padding: 5px 10px; border: none; cursor: pointer; border-radius: 3px; margin-right: 5px; }
+        .edit-btn { background-color: #ffc107; color: #333; }
+        .delete-btn { background-color: #dc3545; color: white; }
+        .search-form input[type="text"] { width: 300px; }
+    </style>
+</head>
+<body>
+
+    <h1>Employee Management (FastAPI + Form Data + SQLite)</h1>
+
+    <h2>Add New Employee</h2>
+    <form action="/add" method="post">
+        <label for="eid">EID:</label>
+        <input type="text" id="eid" name="eid" required>
+
+        <label for="name">Name:</label>
+        <input type="text" id="name" name="name" required>
+
+        <button type="submit">Add Employee</button>
+    </form>
+    
+    <hr>
+    
+    <h2>Search Employees</h2>
+    <form class="search-form" action="/" method="get">
+        <input type="text" name="search" placeholder="Enter EID or Name..." value="{{ search_term if search_term }}">
+        <button type="submit">Search</button>
+        {% if search_term %}
+            <a href="/" style="margin-left: 10px;">Clear Search</a>
+        {% endif %}
+    </form>
+    
+    <hr>
+
+    <h2>Employee List</h2>
+    {% if employees %}
+    <table>
+        <thead>
+            <tr>
+                <th>IDX</th>
+                <th>EID</th>
+                <th>Name</th>
+                <th>Timestamp</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for employee in employees %}
+            <tr id="row-{{ employee.idx }}">
+                <td>{{ employee.idx }}</td>
+                <td data-eid="{{ employee.eid }}">{{ employee.eid }}</td>
+                <td data-name="{{ employee.name }}">{{ employee.name }}</td>
+                <td>{{ employee.timestamp_str }}</td>
+                <td>
+                    <button class="edit-btn" onclick="openEditModal({{ employee.idx }}, '{{ employee.eid }}', '{{ employee.name }}')">Edit</button>
+                    <form action="/delete/{{ employee.idx }}" method="post" style="display:inline;" onsubmit="return confirm('Are you sure you want to delete {{ employee.name }} ({{ employee.eid }})?');">
+                        <button class="delete-btn" type="submit">Delete</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+        <p>No employees found{% if search_term %} matching "{{ search_term }}"{% endif %}.</p>
+    {% endif %}
+
+    <div id="edit-modal" style="display:none; position: fixed; z-index: 1; left: 0; top: 0; width: 100%; height: 100%; overflow: auto; background-color: rgba(0,0,0,0.4);">
+        <div style="background-color: #fefefe; margin: 15% auto; padding: 20px; border: 1px solid #888; width: 80%; max-width: 400px; border-radius: 8px;">
+            <h3>Edit Employee</h3>
+            <form id="edit-form" method="post">
+                <label for="edit-eid">EID:</label>
+                <input type="text" id="edit-eid" name="eid" required>
+
+                <label for="edit-name">Name:</label>
+                <input type="text" id="edit-name" name="name" required>
+
+                <button type="submit">Update Employee</button>
+                <button type="button" onclick="document.getElementById('edit-modal').style.display='none'" style="background-color: #6c757d; margin-left: 10px;">Cancel</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        function openEditModal(idx, eid, name) {
+            // Set the form action dynamically to the correct URL
+            document.getElementById('edit-form').action = "/update/" + idx;
+            
+            // Populate the input fields
+            document.getElementById('edit-eid').value = eid;
+            document.getElementById('edit-name').value = name;
+            
+            // Display the modal
+            document.getElementById('edit-modal').style.display = 'block';
+        }
+    </script>
+
+</body>
+</html>
